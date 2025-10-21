@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, CheckCircle, Circle, Calendar, Flag, Star, Sparkles, Trophy, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Circle, Calendar, Flag, Star, Sparkles, Trophy, TrendingUp, History, Archive } from 'lucide-react';
 
 interface Todo {
   id: number;
@@ -21,28 +21,73 @@ interface Particle {
 
 const TodoApp = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [archivedTodos, setArchivedTodos] = useState<Todo[]>([]);
   const [newTodo, setNewTodo] = useState('');
   const [isDaily, setIsDaily] = useState(false);
   const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
   const [showForm, setShowForm] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
   const [swipedId, setSwipedId] = useState<number | null>(null);
   const [particles, setParticles] = useState<Particle[]>([]);
   const [streak, setStreak] = useState(0);
 
   useEffect(() => {
     const saved = localStorage.getItem('todos');
+    const savedArchived = localStorage.getItem('archivedTodos');
+    const savedStreak = localStorage.getItem('streak');
+
     if (saved) {
       setTodos(JSON.parse(saved));
     }
-    const savedStreak = localStorage.getItem('streak');
+    if (savedArchived) {
+      setArchivedTodos(JSON.parse(savedArchived));
+    }
     if (savedStreak) {
       setStreak(parseInt(savedStreak));
     }
+
+    checkAndResetDailyTasks();
   }, []);
+
+  const checkAndResetDailyTasks = () => {
+    const today = new Date().toDateString();
+    const lastReset = localStorage.getItem('lastResetDate');
+
+    if (lastReset !== today) {
+      const saved = localStorage.getItem('todos');
+      if (saved) {
+        const currentTodos: Todo[] = JSON.parse(saved);
+        const savedArchived = localStorage.getItem('archivedTodos');
+        const currentArchived: Todo[] = savedArchived ? JSON.parse(savedArchived) : [];
+
+        const completedDailyTodos = currentTodos.filter(t => t.isDaily && t.completed);
+
+        if (completedDailyTodos.length > 0) {
+          const newArchived = [...currentArchived, ...completedDailyTodos];
+          localStorage.setItem('archivedTodos', JSON.stringify(newArchived));
+          setArchivedTodos(newArchived);
+        }
+
+        const resetTodos = currentTodos.map(t =>
+          t.isDaily ? { ...t, completed: false, completedAt: null } : t
+        );
+
+        localStorage.setItem('todos', JSON.stringify(resetTodos));
+        localStorage.setItem('lastResetDate', today);
+        setTodos(resetTodos);
+      } else {
+        localStorage.setItem('lastResetDate', today);
+      }
+    }
+  };
 
   useEffect(() => {
     localStorage.setItem('todos', JSON.stringify(todos));
   }, [todos]);
+
+  useEffect(() => {
+    localStorage.setItem('archivedTodos', JSON.stringify(archivedTodos));
+  }, [archivedTodos]);
 
   const addTodo = () => {
     if (newTodo.trim()) {
@@ -98,6 +143,15 @@ const TodoApp = () => {
   const deleteTodo = (id: number) => {
     setTodos(todos.filter(todo => todo.id !== id));
     setSwipedId(null);
+  };
+
+  const deleteArchivedTodo = (id: number) => {
+    setArchivedTodos(archivedTodos.filter(todo => todo.id !== id));
+  };
+
+  const clearAllArchived = () => {
+    setArchivedTodos([]);
+    localStorage.removeItem('archivedTodos');
   };
 
   const dailyTodos = todos.filter(t => t.isDaily);
@@ -366,14 +420,99 @@ const TodoApp = () => {
           </div>
         </div>
 
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="fixed bottom-8 right-8 w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-2xl hover:shadow-pink-500/50 transition-all duration-500 hover:scale-110 active:scale-95 group z-50"
-          style={{ animation: 'float 3s ease-in-out infinite' }}
-        >
-          <Plus className={`w-10 h-10 text-white transition-all duration-500 ${showForm ? 'rotate-[135deg]' : 'group-hover:rotate-90'}`} />
-          <div className="absolute inset-0 bg-gradient-to-br from-pink-400 via-purple-500 to-blue-500 rounded-full blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
-        </button>
+        <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-50">
+          <button
+            onClick={() => setShowArchive(!showArchive)}
+            className="w-16 h-16 bg-gradient-to-br from-amber-500 via-orange-600 to-red-600 rounded-full flex items-center justify-center shadow-2xl hover:shadow-orange-500/50 transition-all duration-500 hover:scale-110 active:scale-95 group"
+          >
+            <History className="w-7 h-7 text-white" />
+            {archivedTodos.length > 0 && (
+              <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-pulse">
+                {archivedTodos.length}
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 rounded-full blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+          </button>
+
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="w-20 h-20 bg-gradient-to-br from-pink-500 via-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-2xl hover:shadow-pink-500/50 transition-all duration-500 hover:scale-110 active:scale-95 group"
+            style={{ animation: 'float 3s ease-in-out infinite' }}
+          >
+            <Plus className={`w-10 h-10 text-white transition-all duration-500 ${showForm ? 'rotate-[135deg]' : 'group-hover:rotate-90'}`} />
+            <div className="absolute inset-0 bg-gradient-to-br from-pink-400 via-purple-500 to-blue-500 rounded-full blur-xl opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
+          </button>
+        </div>
+
+        {showArchive && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-center justify-center p-6" onClick={() => setShowArchive(false)} style={{ animation: 'fadeIn 0.4s ease-out' }}>
+            <div
+              className="backdrop-blur-2xl bg-gradient-to-br from-white/20 to-white/10 rounded-[2rem] p-10 border border-white/30 max-w-2xl w-full shadow-2xl max-h-[80vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+              style={{ animation: 'scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                    <Archive className="w-7 h-7 text-white" />
+                  </div>
+                  <h3 className="text-3xl font-bold text-white">Geçmiş Görevler</h3>
+                </div>
+                {archivedTodos.length > 0 && (
+                  <button
+                    onClick={clearAllArchived}
+                    className="px-4 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 text-sm font-semibold transition-all duration-300 border border-red-400/30"
+                  >
+                    Tümünü Temizle
+                  </button>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                {archivedTodos.length === 0 ? (
+                  <div className="text-center py-16">
+                    <Archive className="w-16 h-16 text-white/30 mx-auto mb-4" />
+                    <p className="text-white/50 text-lg">Henüz arşivlenmiş görev yok</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {archivedTodos.map((todo) => (
+                      <div
+                        key={todo.id}
+                        className="relative backdrop-blur-2xl bg-gradient-to-br from-white/15 to-white/5 rounded-2xl p-4 border border-white/30 transition-all duration-300 hover:border-white/50"
+                      >
+                        <div className="flex items-start gap-4">
+                          <CheckCircle className="w-6 h-6 text-emerald-400 mt-1 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white/80 text-base font-medium mb-2 line-through">
+                              {todo.text}
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`px-3 py-1 rounded-xl text-xs font-bold bg-gradient-to-r ${priorityColors[todo.priority].bg} text-white`}>
+                                {priorityLabels[todo.priority]}
+                              </span>
+                              {todo.completedAt && (
+                                <span className="text-xs text-white/50">
+                                  {new Date(todo.completedAt).toLocaleDateString('tr-TR')} • {new Date(todo.completedAt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => deleteArchivedTodo(todo.id)}
+                            className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-300 transition-all duration-300"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {showForm && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-50 flex items-center justify-center p-6" onClick={() => setShowForm(false)} style={{ animation: 'fadeIn 0.4s ease-out' }}>
